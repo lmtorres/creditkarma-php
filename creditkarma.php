@@ -21,7 +21,7 @@ class CreditKarma
      * @var string
      * @access private
      */
-    private $user_agent_string = "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; .NET CLR 1.0.3705; .NET CLR 1.1.4322; Media Center PC 4.0)";
+    private $user_agent_string = "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36";
 
     // Private variables
     private $logon_user = "";
@@ -74,12 +74,6 @@ class CreditKarma
         $LastUpdated = $update_values["LastUpdated"];
         $Score = $update_values["Score"];
 
-        // Get the Insurance Score
-        $ScoreInsurance = $this->getScoreInsurance();
-
-        // Get the Vantage Score
-        $ScoreVantage = $this->getScoreVantage();
-
         // Get the cache file contents
         $cache_file_contents = "";
         if ( file_exists( $this->cache_file ) )
@@ -94,8 +88,6 @@ class CreditKarma
         $cache_index = date( "Y-m-d", $LastUpdated );
         $cache_data[ $cache_index ] = array(
             "Score"          => $Score,
-            "ScoreInsurance" => $ScoreInsurance,
-            "ScoreVantage"   => $ScoreVantage,
         );
 
         // Save the cache data
@@ -105,16 +97,14 @@ class CreditKarma
         return array(
             "LastUpdated"    => $LastUpdated,
             "Score"          => $Score,
-            "ScoreInsurance" => $ScoreInsurance,
-            "ScoreVantage"   => $ScoreVantage,
         );
     }
 
-    public function getLastUpdated()
+    /*public function getLastUpdated()
     {
         $date_string = $this->getPageValue( "/score", "div#scoreInfo p.lastUpdated", 0 );
         $date_string = explode( ":", $date_string );
-	$date_string = $date_string[1];
+	    $date_string = $date_string[1];
         return strtotime( $date_string );
     }
 
@@ -131,20 +121,20 @@ class CreditKarma
     public function getScoreVantage()
     {
         return $this->getPageValue( "/scorevantage", "div#scoreInfo h5", 0 );
-    }
+    }*/
 
     public function doUpdate()
     {
         $values = $this->getPageValues(
-            "/scoretransrisk/getscore",
+            "/myfinances/scores/transunion",
             array(
-                "div#scoreInfo p.lastUpdated",
-                "div#scoreInfo h5",
+                "span.date-updated",
+                "div#tu-vantage-score span.score-value",
             )
         );
-
-        $date_string = explode( ":", $values[0] );
-	$LastUpdated = strtotime( $date_string[1] );
+        preg_match('~on (.*?) by~',$values[0],$matches);
+	    $date_string = $matches[1];
+        $LastUpdated = strtotime( $date_string );
         $Score = $values[1];
 
         return array(
@@ -157,8 +147,8 @@ class CreditKarma
     {
         // Check the logon status
         $form_object = $html_object->find( "form#logonform", 0 );
-        $member_object = $html_object->find( "img.memberImage", 0 );
-        $logon_status = ( !$form_object && $member_object );
+        $member_object = $html_object->find( "img.cookied-pic", 0 );
+        $logon_status = ( !$form_object );
 
         // If logon status is active, return that nothing was done
         if ( $logon_status )
@@ -195,7 +185,7 @@ class CreditKarma
         if ( !$html_object )
             throw new Exception( "Invalid Page HTML Object" );
 
-        // Check for errors
+       /* // Check for errors
         $username_error_text = "";
         if ( $username_error_object = $html_object->find( "div#advice-username", 0 ) )
             $username_error_text = $username_error_object->innertext();
@@ -212,7 +202,7 @@ class CreditKarma
         if ( $password_error_text )
             throw new Exception( "Logon Error: ".$password_error_text );
         if ( $general_error_text )
-            throw new Exception( "Logon Error: ".$general_error_text );
+            throw new Exception( "Logon Error: ".$general_error_text );*/
 
         // Return that something was done
         return true;
@@ -238,7 +228,7 @@ class CreditKarma
      * @param int $selector_id (default: 0)
      * @return mixed
      */
-    private function getPageValue( $path, $selector, $selector_id = 0 )
+    /*private function getPageValue( $path, $selector, $selector_id = 0 )
     {
         // Get the HTML object
         $html_object = $this->getPage( $path );
@@ -252,7 +242,7 @@ class CreditKarma
 
         // Return the contents of the tag object
         return trim( $tag_object->innertext() );
-    }
+    }*/
 
     /**
      * Get a page from the server and return the tag contents of the selector
@@ -267,6 +257,7 @@ class CreditKarma
     {
         // Get the HTML object
         $html_object = $this->getPage( $path );
+
         if ( !$html_object )
             throw new Exception( "Invalid HTML Object (getPageValues)" );
 
@@ -303,12 +294,14 @@ class CreditKarma
     private function getPage( $path, $fail_on_logon_form = false )
     {
         // Request page and parse results
-        $response_string = $this->getResponse( $this->http_site_url.$path );
+        $response_string = $this->getResponse( 'https://www.creditkarma.com/'.$path );
+
         if ( !$response_string )
             throw new Exception( "Missing Page Response String" );
 
         // Check html string and convert to object
         $html_object = str_get_html( $response_string );
+
         if ( !$html_object )
             throw new Exception( "Invalid Page HTML Object" );
 
@@ -323,7 +316,6 @@ class CreditKarma
             return $this->getPage( $path, true );
 
         }
-
         // Return html object
         return $html_object;
     }
